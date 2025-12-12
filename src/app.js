@@ -25,4 +25,8 @@ app.use("/api/ar", arRoutes);
 
 app.use("/api/review", reviewRoutes);
 
+app.get("/healthz", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 export default app;
