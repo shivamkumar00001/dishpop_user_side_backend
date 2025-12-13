@@ -11,7 +11,7 @@ router.post("/:restaurantId", incrementAR);
 // NEW: GET stats for a restaurant
 router.get("/stats/:restaurantId", async (req, res) => {
   try {
-    const { restaurantId } = req.params;
+    const { restaurantId} = req.params;
 
     // Fetch all stats for this restaurant
     const stats = await ARStatistics.find({ restaurantId })

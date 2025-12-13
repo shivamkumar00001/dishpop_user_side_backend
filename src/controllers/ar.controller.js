@@ -9,7 +9,7 @@ export const incrementAR = async (req, res) => {
     if (!restaurantId || !itemName || !imageUrl) {
       return res.status(400).json({
         success: false,
-        message: "restaurantId, itemName and imageUrl are required",
+        message: "username, itemName and imageUrl are required",
       });
     }
 

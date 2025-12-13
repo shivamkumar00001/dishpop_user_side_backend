@@ -17,14 +17,23 @@ class CheckoutController {
         });
       }
 
-      // Decide message based on what happened
-      let message = "Order created successfully";
+      // 🔴 SOCKET EMITS (SAFE & ISOLATED)
+      if (result.created) {
+        req.io.to(username).emit("order-created", result.data);
+      }
 
       if (result.updated) {
-        message = "Order updated successfully";
-      } else if (result.replaced) {
-        message = "Previous order removed and new order created";
+        req.io.to(username).emit("order-updated", result.data);
       }
+
+      if (result.replaced) {
+        req.io.to(username).emit("order-replaced", result.data);
+      }
+
+      // Response message
+      let message = "Order created successfully";
+      if (result.updated) message = "Order updated successfully";
+      if (result.replaced) message = "Previous order removed and new order created";
 
       return res.status(201).json({
         success: true,

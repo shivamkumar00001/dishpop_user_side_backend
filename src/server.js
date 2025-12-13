@@ -15,15 +15,26 @@ const server = http.createServer(app);
 // Attach Socket.IO
 export const io = new Server(server, {
   cors: {
-    origin: "*", // allow both user & dashboard
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   },
 });
 
-// Listen for new connections (optional logging)
+// ✅ MAKE SOCKET AVAILABLE IN CONTROLLERS
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
+// Socket connection logs (optional)
 io.on("connection", (socket) => {
   console.log("A client connected:", socket.id);
+
+  socket.on("join-restaurant", (username) => {
+    socket.join(username);
+    console.log(`Joined restaurant room: ${username}`);
+  });
 
   socket.on("disconnect", () => {
     console.log("Client disconnected:", socket.id);
@@ -35,5 +46,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-

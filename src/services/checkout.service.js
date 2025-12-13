@@ -4,7 +4,7 @@ class CheckoutService {
   async createOrder(data) {
     try {
       const {
-        restaurantId,
+        username,
         tableNumber,
         customerName,
         phoneNumber,
@@ -14,7 +14,7 @@ class CheckoutService {
 
       // Find existing order for table
       const existingOrder = await CustomerModel.findOne({
-        restaurantId,
+        username,
         tableNumber
       });
 
