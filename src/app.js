@@ -29,7 +29,14 @@ app.use("/api/review", reviewRoutes);
 app.use("/api/owner", ownerRoutes);
 
 app.get("/healthz", (req, res) => {
-  res.status(200).json({ status: "ok" });
+  res
+    .status(200)
+    .set("Cache-Control", "no-store")
+    .json({
+      status: "ok",
+      time: Date.now(),
+    });
 });
+
 
 export default app;
