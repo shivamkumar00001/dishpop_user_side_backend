@@ -1,47 +1,83 @@
+// services/checkout.service.js
 import Customer from "../models/coustomer.model.js";
 
 class CheckoutService {
-  async createOrder(data) {
-    const { username, tableNumber, customerName, phoneNumber, description, items } = data;
-
-    if (!username) throw new Error("Invalid restaurant");
-    if (!customerName) throw new Error("Customer name required");
-
-    const table = Number(tableNumber);
-    if (!Number.isInteger(table) || table <= 0)
-      throw new Error("Invalid table number");
-
-    if (!Array.isArray(items) || items.length === 0)
-      throw new Error("Cart is empty");
-
-    const payload = {
+  static async createOrder(payload) {
+    const {
       username,
-      tableNumber: table,
-      customerName: customerName.trim(),
-      phoneNumber: phoneNumber || "",
-      description: description || "",
-      items: items.map(i => ({
-        itemId: String(i.itemId),
-        name: String(i.name),
-        qty: Number(i.qty),
-        price: Number(i.price),
-        imageUrl: i.imageUrl || ""
-      }))
-    };
+      customerName,
+      phoneNumber,
+      tableNumber,
+      description,
+      items,
+      grandTotal,
+    } = payload;
 
-    const existing = await Customer.findOne({ username, tableNumber: table });
-
-    if (!existing)
-      return { created: true, data: await Customer.create(payload) };
-
-    if (existing.customerName === payload.customerName) {
-      await Customer.updateOne({ _id: existing._id }, { $set: payload });
-      return { updated: true, data: await Customer.findById(existing._id) };
+    /* ---------------- VALIDATION ---------------- */
+    if (!customerName || !tableNumber) {
+      throw new Error("Customer name and table number required");
     }
 
-    await Customer.deleteOne({ _id: existing._id });
-    return { replaced: true, data: await Customer.create(payload) };
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error("No items in order");
+    }
+
+    if (typeof grandTotal !== "number") {
+      throw new Error("Grand total missing");
+    }
+
+    /* ---------------- NORMALIZE ITEMS ---------------- */
+    const normalizedItems = items.map((item, idx) => {
+      if (
+        !item.variant?.name ||
+        typeof item.variant.price !== "number"
+      ) {
+        throw new Error(`Invalid variant in item ${idx + 1}`);
+      }
+
+      if (
+        typeof item.unitPrice !== "number" ||
+        typeof item.totalPrice !== "number"
+      ) {
+        throw new Error(`Invalid pricing in item ${idx + 1}`);
+      }
+
+      return {
+        itemId: item.itemId,
+        name: item.name,
+        imageUrl: item.imageUrl || "",
+
+        qty: Number(item.qty),
+
+        variant: {
+          name: item.variant.name,
+          price: item.variant.price,
+        },
+
+        addons: item.addons || [],
+
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+      };
+    });
+
+    /* ---------------- CREATE ORDER ---------------- */
+    const order = await Customer.create({
+      username,
+      customerName,
+      phoneNumber,
+      tableNumber,
+      description,
+
+      items: normalizedItems,
+      grandTotal,
+    });
+
+    return {
+      created: true,
+      data: order,
+    };
   }
 }
 
-export default new CheckoutService();
+export default CheckoutService;

@@ -1,5 +1,5 @@
 import express from "express";
-import menuRoutes from "./routes/menu.routes.js";
+import userMenuRoutes from "./routes/userMenu.routes.js";
 import checkoutRoutes from "./routes/checkout.routes.js";
 import ownerRoutes from "./routes/owner.routes.js";
 import reviewRoutes from "./routes/review.route.js";
@@ -18,7 +18,8 @@ app.use(
 
 app.use(express.json());
 
-app.use("/api/menu", menuRoutes);
+app.use("/api/user", userMenuRoutes);
+
 
 app.use("/api/checkout", checkoutRoutes);
 

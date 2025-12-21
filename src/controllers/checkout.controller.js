@@ -1,32 +1,4 @@
-// import CheckoutService from "../services/checkout.service.js";
-
-// class CheckoutController {
-//   async createOrder(req, res) {
-//     try {
-//       const result = await CheckoutService.createOrder({
-//         ...req.body,
-//         username: req.params.username
-//       });
-
-//       const room = req.params.username;
-
-//       if (result.created) req.io?.to(room).emit("order-created", result.data);
-//       if (result.updated) req.io?.to(room).emit("order-updated", result.data);
-//       if (result.replaced) req.io?.to(room).emit("order-replaced", result.data);
-
-//       res.status(201).json({ success: true, data: result.data });
-
-//     } catch (err) {
-//       res.status(400).json({
-//         success: false,
-//         message: err.message
-//       });
-//     }
-//   }
-// }
-
-// export default new CheckoutController();
-
+// controllers/checkout.controller.js
 import CheckoutService from "../services/checkout.service.js";
 import { publishOrderEvent } from "../config/publishOrderEvent.js";
 
@@ -35,12 +7,33 @@ class CheckoutController {
     try {
       const { username } = req.params;
 
+      if (!username) {
+        return res.status(400).json({
+          success: false,
+          message: "Restaurant username is required",
+        });
+      }
+
+      const {
+        customerName,
+        phoneNumber,
+        tableNumber,
+        description,
+        items,
+        grandTotal,
+      } = req.body;
+
       const result = await CheckoutService.createOrder({
-        ...req.body,
-        username
+        username,
+        customerName,
+        phoneNumber,
+        tableNumber,
+        description,
+        items,
+        grandTotal, // 🔥 FIXED
       });
 
-      // 🔥 PUBLISH TO REDIS (restaurant backend will forward to sockets)
+      /* 🔥 REDIS EVENTS (UNCHANGED) */
       if (result.created) {
         await publishOrderEvent("order-created", username, result.data);
       }
@@ -55,14 +48,14 @@ class CheckoutController {
 
       return res.status(201).json({
         success: true,
-        data: result.data
+        data: result.data,
       });
 
     } catch (err) {
       console.error("Checkout error:", err);
       return res.status(400).json({
         success: false,
-        message: err.message
+        message: err.message || "Checkout failed",
       });
     }
   }
