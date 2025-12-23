@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const ownerSchema = new mongoose.Schema(
   {
+    /* ---------------- BASIC INFO ---------------- */
     username: {
       type: String,
       required: true,
@@ -42,13 +43,54 @@ const ownerSchema = new mongoose.Schema(
     restaurantType: String,
     description: String,
 
-    profilePhoto: { type: String, default: null },
+    profilePhoto: {
+      type: String,
+      default: null,
+    },
 
-    accountVerified: { type: Boolean, default: false },
+    password: {
+      type: String,
+      required: true,
+      select: false, // 🔐 do not expose accidentally
+    },
+
+    accountVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    /* ---------------- SUBSCRIPTION INFO ---------------- */
+    subscription: {
+      status: {
+        type: String,
+        enum: ["active", "inactive", "pending"],
+        default: "inactive",
+      },
+
+      trial_end: {
+        type: Date,
+        default: null,
+      },
+
+      current_period_end: {
+        type: Date,
+        default: null,
+      },
+
+      razorpay_customer_id: {
+        type: String,
+        default: null,
+      },
+
+      razorpay_subscription_id: {
+        type: String,
+        default: null,
+      },
+    },
   },
   {
     timestamps: true,
-    collection: "owners", // 🔥 CRITICAL: match existing collection
+    collection: "owners", // 🔥 KEEP THIS
   }
 );
 
