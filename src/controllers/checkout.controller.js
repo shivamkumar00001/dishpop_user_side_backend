@@ -341,7 +341,7 @@
 
 import CheckoutService from "../services/checkout.service.js";
 import { publishOrderEvent } from "../config/publishOrderEvent.js";
-import restaurantSocketService from "../services/restaurantSocket.service.js";
+import restaurantSocketService from "../services/restaurantSocket.services.js";
 
 class CheckoutController {
   async createOrder(req, res) {
