@@ -60,33 +60,57 @@ const ownerSchema = new mongoose.Schema(
     },
 
     /* ---------------- SUBSCRIPTION INFO ---------------- */
-    subscription: {
-      status: {
-        type: String,
-        enum: ["active", "inactive", "pending"],
-        default: "inactive",
+      subscription: {
+        status: {
+          type: String,
+          enum: [
+            "NOT_SUBSCRIBED",
+            "PENDING_AUTH",
+            "TRIALING",
+            "ACTIVE",
+            "CANCELLED",
+            "EXPIRED"
+          ],
+          default: "NOT_SUBSCRIBED",
+        },
+
+        plan: {
+          type: String,
+          enum: ["MONTHLY", "QUARTERLY", "YEARLY"],
+          default: null,
+        },
+
+        razorpayCustomerId: {
+          type: String,
+          default: null,
+        },
+
+        razorpaySubscriptionId: {
+          type: String,
+          default: null,
+        },
+
+        trialStart: {
+          type: Date,
+          default: null,
+        },
+
+        trialEnd: {
+          type: Date,
+          default: null,
+        },
+
+        subscribedAt: {
+          type: Date,
+          default: null,
+        },
+
+        currentPeriodEnd: {
+          type: Date,
+          default: null,
+        },
       },
 
-      trial_end: {
-        type: Date,
-        default: null,
-      },
-
-      current_period_end: {
-        type: Date,
-        default: null,
-      },
-
-      razorpay_customer_id: {
-        type: String,
-        default: null,
-      },
-
-      razorpay_subscription_id: {
-        type: String,
-        default: null,
-      },
-    },
   },
   {
     timestamps: true,

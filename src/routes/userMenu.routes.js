@@ -7,7 +7,7 @@ const router = express.Router();
 // 🔒 Menu accessible only if restaurant is subscribed
 router.get(
   "/:username/menu",
-  // checkSubscription,
+  checkSubscription,
   getMenu
 );
 
