@@ -44,6 +44,13 @@ const DishSchema = new mongoose.Schema(
     imageUrl: String,
     thumbnailUrl: String,
 
+    /* ✅ AR MODEL SUPPORT (ADDED ONLY) */
+    arModel: {
+      glb: { type: String },
+      usdz: { type: String },
+      isAvailable: { type: Boolean, default: false },
+    },
+
     isAvailable: { type: Boolean, default: true },
     popularityScore: { type: Number, default: 0 },
   },
