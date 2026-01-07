@@ -1,5 +1,6 @@
 // services/checkout.service.js
 import Customer from "../models/coustomer.model.js";
+import crypto from "crypto";
 
 class CheckoutService {
   static async createOrder(payload) {
@@ -11,6 +12,9 @@ class CheckoutService {
       description,
       items,
       grandTotal,
+
+      // 🔹 NEW (optional)
+      sessionId,
     } = payload;
 
     /* ---------------- VALIDATION ---------------- */
@@ -25,6 +29,12 @@ class CheckoutService {
     if (typeof grandTotal !== "number") {
       throw new Error("Grand total missing");
     }
+
+    /* ---------------- SESSION HANDLING ---------------- */
+    // Backward-compatible:
+    // If frontend doesn't send sessionId, generate one
+    const finalSessionId =
+      sessionId || crypto.randomUUID();
 
     /* ---------------- NORMALIZE ITEMS ---------------- */
     const normalizedItems = items.map((item, idx) => {
@@ -64,18 +74,23 @@ class CheckoutService {
     /* ---------------- CREATE ORDER ---------------- */
     const order = await Customer.create({
       username,
+      tableNumber,
+      sessionId: finalSessionId, // ✅ added
+
       customerName,
       phoneNumber,
-      tableNumber,
       description,
 
       items: normalizedItems,
       grandTotal,
+
+      // status untouched (default = pending)
     });
 
     return {
       created: true,
       data: order,
+      sessionId: finalSessionId, // 🔹 return to frontend
     };
   }
 }
