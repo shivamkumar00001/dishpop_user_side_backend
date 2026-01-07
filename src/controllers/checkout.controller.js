@@ -339,6 +339,7 @@
 // DESCRIPTION: FINAL CORRECTED - Uses notifyOrderCreated() method
 // ============================================================
 
+
 import CheckoutService from "../services/checkout.service.js";
 import { publishOrderEvent } from "../config/publishOrderEvent.js";
 import restaurantSocketService from "../services/restaurantSocket.services.js";
@@ -361,10 +362,13 @@ class CheckoutController {
         description,
         items,
         grandTotal,
+
+        // 🔹 NEW (optional, backward compatible)
+        sessionId,
       } = req.body;
 
       // ===============================================
-      // 1. CREATE ORDER IN DATABASE (SINGLE SOURCE)
+      // 1. CREATE ORDER IN DATABASE
       // ===============================================
       const result = await CheckoutService.createOrder({
         username,
@@ -374,10 +378,13 @@ class CheckoutController {
         description,
         items,
         grandTotal,
+
+        // 🔹 forward sessionId
+        sessionId,
       });
 
       // ===============================================
-      // 2. REDIS EVENTS (Your existing logic)
+      // 2. REDIS EVENTS (UNCHANGED)
       // ===============================================
       if (result.created) {
         publishOrderEvent("order-created", username, result.data);
@@ -392,7 +399,7 @@ class CheckoutController {
       }
 
       // ===============================================
-      // 3. SOCKET.IO - NOTIFY RESTAURANT (NEW METHOD)
+      // 3. SOCKET.IO - NOTIFY RESTAURANT
       // ===============================================
       if (result.created && result.data._id) {
         try {
@@ -401,7 +408,6 @@ class CheckoutController {
           if (socketStatus.connected) {
             console.log("📡 Notifying restaurant backend about new order");
 
-            // ✅ NEW: Use notifyOrderCreated() - sends only orderId + username
             await restaurantSocketService.notifyOrderCreated(
               result.data._id.toString(),
               username
@@ -409,12 +415,10 @@ class CheckoutController {
 
             console.log(`✅ Restaurant notified - Order ID: ${result.data._id}`);
           } else {
-            console.log("⚠️ Socket.IO not connected - order saved but no real-time update");
+            console.log("⚠️ Socket.IO not connected - order saved only");
           }
         } catch (socketError) {
-          // Don't fail the order if Socket.IO fails
           console.error("⚠️ Socket notification failed:", socketError.message);
-          console.log("📝 Order still saved successfully");
         }
       }
 
@@ -424,6 +428,9 @@ class CheckoutController {
       return res.status(201).json({
         success: true,
         data: result.data,
+
+        // 🔹 IMPORTANT: return sessionId to frontend
+        sessionId: result.sessionId,
       });
     } catch (err) {
       console.error("Checkout error:", err);
@@ -434,9 +441,6 @@ class CheckoutController {
     }
   }
 
-  // ===============================================
-  // GET SOCKET CONNECTION STATUS
-  // ===============================================
   async getSocketStatus(req, res) {
     try {
       const status = restaurantSocketService.getStatus();
@@ -444,7 +448,8 @@ class CheckoutController {
         success: true,
         connected: status.connected,
         socketId: status.socketId,
-        restaurantBackendUrl: process.env.RESTAURANT_BACKEND_URL || "Not configured",
+        restaurantBackendUrl:
+          process.env.RESTAURANT_BACKEND_URL || "Not configured",
       });
     } catch (error) {
       return res.status(500).json({
