@@ -10,20 +10,21 @@ import "../models/Tag.js";
 export async function getUserMenu(
   username,
   page = 1,
-  limit = 3, // number of categories per page
+  limit = 3,
   search = null,
   tags = null
 ) {
   const skip = (page - 1) * limit;
 
-  // 1️⃣ Paginate categories
+  // 1️⃣ Paginate categories (STABLE)
   const categories = await Category.find({
     username,
     isActive: true,
   })
-    .sort({ order: 1 })
+    .sort({ order: 1, _id: 1 })
     .skip(skip)
-    .limit(limit);
+    .limit(limit)
+    .lean();
 
   // 2️⃣ Build dish query
   const dishQuery = {
@@ -42,21 +43,29 @@ export async function getUserMenu(
     };
   }
 
-  // 3️⃣ Fetch ALL dishes for these categories
+  // 3️⃣ Fetch dishes
   const dishes = await Dish.find(dishQuery)
     .sort({ popularityScore: -1, createdAt: -1 })
     .populate("categoryId", "name icon")
     .populate("tagDetails", "key name icon color")
     .lean();
 
-  // 4️⃣ Group dishes by category
+  // 4️⃣ Group dishes by category (FAST)
+  const dishMap = new Map();
+
+  for (const dish of dishes) {
+    const catId = dish.categoryId._id.toString();
+    if (!dishMap.has(catId)) {
+      dishMap.set(catId, []);
+    }
+    dishMap.get(catId).push(dish);
+  }
+
   const menu = categories.map((cat) => ({
-    id: cat._id,
+    id: cat._id.toString(),
     name: cat.name,
     icon: cat.icon,
-    dishes: dishes.filter(
-      (dish) => dish.categoryId._id.toString() === cat._id.toString()
-    ),
+    dishes: dishMap.get(cat._id.toString()) || [], // ✅ always present
   }));
 
   // 5️⃣ Pagination info
