@@ -87,5 +87,6 @@ const CustomerSchema = new Schema(
 /* Indexes for restaurant-side grouping */
 CustomerSchema.index({ username: 1, sessionId: 1 });
 CustomerSchema.index({ username: 1, tableNumber: 1 });
+CustomerSchema.index({ sessionId: 1, status: 1 });
 
 export default mongoose.model("Customer", CustomerSchema);

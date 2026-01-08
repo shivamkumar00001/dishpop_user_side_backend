@@ -1,98 +1,110 @@
 // services/checkout.service.js
 import Customer from "../models/coustomer.model.js";
-import crypto from "crypto";
+import Session from "../models/Session.js";
 
-class CheckoutService {
-  static async createOrder(payload) {
-    const {
-      username,
-      customerName,
-      phoneNumber,
-      tableNumber,
-      description,
-      items,
-      grandTotal,
+/**
+ * CREATE ORDER (SESSION-AWARE)
+ * This function is SAFE, ATOMIC, and POS-GRADE
+ */
+export async function createOrder(payload) {
+  const {
+    username,
+    customerName,
+    phoneNumber,
+    tableNumber,
+    description,
+    items,
+    grandTotal,
+    sessionId,
+  } = payload;
 
-      // 🔹 NEW (optional)
+  /* ---------------- VALIDATION ---------------- */
+  if (!username || !customerName || !tableNumber) {
+    throw new Error("Username, customer name and table number required");
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("No items in order");
+  }
+
+  if (typeof grandTotal !== "number") {
+    throw new Error("Grand total missing");
+  }
+
+  /* ---------------- SESSION HANDLING ---------------- */
+  let session;
+
+  if (sessionId) {
+    session = await Session.findOne({
       sessionId,
-    } = payload;
-
-    /* ---------------- VALIDATION ---------------- */
-    if (!customerName || !tableNumber) {
-      throw new Error("Customer name and table number required");
-    }
-
-    if (!Array.isArray(items) || items.length === 0) {
-      throw new Error("No items in order");
-    }
-
-    if (typeof grandTotal !== "number") {
-      throw new Error("Grand total missing");
-    }
-
-    /* ---------------- SESSION HANDLING ---------------- */
-    // Backward-compatible:
-    // If frontend doesn't send sessionId, generate one
-    const finalSessionId =
-      sessionId || crypto.randomUUID();
-
-    /* ---------------- NORMALIZE ITEMS ---------------- */
-    const normalizedItems = items.map((item, idx) => {
-      if (
-        !item.variant?.name ||
-        typeof item.variant.price !== "number"
-      ) {
-        throw new Error(`Invalid variant in item ${idx + 1}`);
-      }
-
-      if (
-        typeof item.unitPrice !== "number" ||
-        typeof item.totalPrice !== "number"
-      ) {
-        throw new Error(`Invalid pricing in item ${idx + 1}`);
-      }
-
-      return {
-        itemId: item.itemId,
-        name: item.name,
-        imageUrl: item.imageUrl || "",
-
-        qty: Number(item.qty),
-
-        variant: {
-          name: item.variant.name,
-          price: item.variant.price,
-        },
-
-        addons: item.addons || [],
-
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
-      };
+      username,
     });
 
-    /* ---------------- CREATE ORDER ---------------- */
-    const order = await Customer.create({
+    if (!session) {
+      throw new Error("Invalid session");
+    }
+  } else {
+    const result = await Session.findOrCreateActive({
       username,
       tableNumber,
-      sessionId: finalSessionId, // ✅ added
-
       customerName,
       phoneNumber,
-      description,
-
-      items: normalizedItems,
-      grandTotal,
-
-      // status untouched (default = pending)
     });
+
+    session = result.session;
+  }
+
+  // 🔥 HARD BLOCK AFTER BILLING
+  if (session.status !== "ACTIVE") {
+    throw new Error("Session is closed. Please start a new order.");
+  }
+
+  /* ---------------- NORMALIZE ITEMS ---------------- */
+  const normalizedItems = items.map((item, idx) => {
+    if (!item.variant?.name || typeof item.variant.price !== "number") {
+      throw new Error(`Invalid variant in item ${idx + 1}`);
+    }
+
+    if (
+      typeof item.unitPrice !== "number" ||
+      typeof item.totalPrice !== "number"
+    ) {
+      throw new Error(`Invalid pricing in item ${idx + 1}`);
+    }
 
     return {
-      created: true,
-      data: order,
-      sessionId: finalSessionId, // 🔹 return to frontend
+      itemId: item.itemId,
+      name: item.name,
+      imageUrl: item.imageUrl || "",
+      qty: Number(item.qty),
+      variant: item.variant,
+      addons: item.addons || [],
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
     };
-  }
-}
+  });
 
-export default CheckoutService;
+  /* ---------------- CREATE ORDER ---------------- */
+  const order = await Customer.create({
+    username,
+    tableNumber,
+    sessionId: session.sessionId,
+    customerName,
+    phoneNumber,
+    description,
+    items: normalizedItems,
+    grandTotal,
+  });
+
+  /* ---------------- LINK ORDER TO SESSION ---------------- */
+  session.orders.push(order._id);
+  await session.save();
+
+  /* ---------------- RETURN ---------------- */
+  return {
+    created: true,
+    data: order,
+    sessionId: session.sessionId,
+    sessionStatus: session.status,
+  };
+}

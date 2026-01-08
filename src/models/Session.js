@@ -1,5 +1,5 @@
-const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
+import mongoose from "mongoose";
+const { Schema } = mongoose;
 
 const SessionSchema = new Schema(
   {
@@ -40,7 +40,6 @@ const SessionSchema = new Schema(
       index: true,
     },
 
-    // 🔥 All orders linked to this session
     orders: [
       {
         type: Schema.Types.ObjectId,
@@ -77,10 +76,6 @@ SessionSchema.statics.generateSessionId = function () {
   return `SES-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 };
 
-/**
- * 🔥 CREATE SESSION ONLY IF NOT EXISTS
- * This is called ONLY on first order
- */
 SessionSchema.statics.findOrCreateActive = async function ({
   username,
   tableNumber,
@@ -115,4 +110,4 @@ SessionSchema.methods.markAsBilled = async function (billId) {
   await this.save();
 };
 
-module.exports = mongoose.model("Session", SessionSchema);
+export default mongoose.model("Session", SessionSchema);

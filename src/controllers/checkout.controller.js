@@ -340,14 +340,144 @@
 // ============================================================
 
 
-import CheckoutService from "../services/checkout.service.js";
+// import CheckoutService from "../services/checkout.service.js";
+// import { publishOrderEvent } from "../config/publishOrderEvent.js";
+// import restaurantSocketService from "../services/restaurantSocket.services.js";
+
+// class CheckoutController {
+//   async createOrder(req, res) {
+//     try {
+//       const { username } = req.params;
+//       if (!username) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Restaurant username is required",
+//         });
+//       }
+
+//       const {
+//         customerName,
+//         phoneNumber,
+//         tableNumber,
+//         description,
+//         items,
+//         grandTotal,
+
+//         // 🔹 NEW (optional, backward compatible)
+//         sessionId,
+//       } = req.body;
+
+//       // ===============================================
+//       // 1. CREATE ORDER IN DATABASE
+//       // ===============================================
+//       const result = await CheckoutService.createOrder({
+//         username,
+//         customerName,
+//         phoneNumber,
+//         tableNumber,
+//         description,
+//         items,
+//         grandTotal,
+
+//         // 🔹 forward sessionId
+//         sessionId,
+//       });
+
+//       // ===============================================
+//       // 2. REDIS EVENTS (UNCHANGED)
+//       // ===============================================
+//       if (result.created) {
+//         publishOrderEvent("order-created", username, result.data);
+//       }
+
+//       if (result.updated) {
+//         publishOrderEvent("order-updated", username, result.data);
+//       }
+
+//       if (result.replaced) {
+//         publishOrderEvent("order-replaced", username, result.data);
+//       }
+
+//       // ===============================================
+//       // 3. SOCKET.IO - NOTIFY RESTAURANT
+//       // ===============================================
+//       if (result.created && result.data._id) {
+//         try {
+//           const socketStatus = restaurantSocketService.getStatus();
+
+//           if (socketStatus.connected) {
+//             console.log("📡 Notifying restaurant backend about new order");
+
+//             await restaurantSocketService.notifyOrderCreated(
+//               result.data._id.toString(),
+//               username
+//             );
+
+//             console.log(`✅ Restaurant notified - Order ID: ${result.data._id}`);
+//           } else {
+//             console.log("⚠️ Socket.IO not connected - order saved only");
+//           }
+//         } catch (socketError) {
+//           console.error("⚠️ Socket notification failed:", socketError.message);
+//         }
+//       }
+
+//       // ===============================================
+//       // 4. RETURN SUCCESS RESPONSE
+//       // ===============================================
+//       return res.status(201).json({
+//         success: true,
+//         data: result.data,
+
+//         // 🔹 IMPORTANT: return sessionId to frontend
+//         sessionId: result.sessionId,
+//       });
+//     } catch (err) {
+//       console.error("Checkout error:", err);
+//       return res.status(400).json({
+//         success: false,
+//         message: err.message || "Checkout failed",
+//       });
+//     }
+//   }
+
+//   async getSocketStatus(req, res) {
+//     try {
+//       const status = restaurantSocketService.getStatus();
+//       return res.status(200).json({
+//         success: true,
+//         connected: status.connected,
+//         socketId: status.socketId,
+//         restaurantBackendUrl:
+//           process.env.RESTAURANT_BACKEND_URL || "Not configured",
+//       });
+//     } catch (error) {
+//       return res.status(500).json({
+//         success: false,
+//         message: "Failed to get socket status",
+//       });
+//     }
+//   }
+// }
+
+// export default new CheckoutController();
+
+
+import { createOrder } from "../services/checkout.service.js";
 import { publishOrderEvent } from "../config/publishOrderEvent.js";
 import restaurantSocketService from "../services/restaurantSocket.services.js";
 
 class CheckoutController {
+  /**
+   * ===============================================
+   * CREATE ORDER (SESSION-AWARE)
+   * ===============================================
+   */
   async createOrder(req, res) {
     try {
+      /* ---------------- PARAM VALIDATION ---------------- */
       const { username } = req.params;
+
       if (!username) {
         return res.status(400).json({
           success: false,
@@ -362,15 +492,11 @@ class CheckoutController {
         description,
         items,
         grandTotal,
-
-        // 🔹 NEW (optional, backward compatible)
-        sessionId,
+        sessionId, // optional (add-on orders)
       } = req.body;
 
-      // ===============================================
-      // 1. CREATE ORDER IN DATABASE
-      // ===============================================
-      const result = await CheckoutService.createOrder({
+      /* ---------------- CREATE ORDER ---------------- */
+      const result = await createOrder({
         username,
         customerName,
         phoneNumber,
@@ -378,30 +504,19 @@ class CheckoutController {
         description,
         items,
         grandTotal,
-
-        // 🔹 forward sessionId
         sessionId,
       });
 
-      // ===============================================
-      // 2. REDIS EVENTS (UNCHANGED)
-      // ===============================================
+      /* ---------------- REDIS EVENT ---------------- */
       if (result.created) {
-        publishOrderEvent("order-created", username, result.data);
+        publishOrderEvent("order-created", username, {
+          order: result.data,
+          sessionId: result.sessionId,
+        });
       }
 
-      if (result.updated) {
-        publishOrderEvent("order-updated", username, result.data);
-      }
-
-      if (result.replaced) {
-        publishOrderEvent("order-replaced", username, result.data);
-      }
-
-      // ===============================================
-      // 3. SOCKET.IO - NOTIFY RESTAURANT
-      // ===============================================
-      if (result.created && result.data._id) {
+      /* ---------------- SOCKET.IO ---------------- */
+      if (result.created && result.data?._id) {
         try {
           const socketStatus = restaurantSocketService.getStatus();
 
@@ -413,27 +528,30 @@ class CheckoutController {
               username
             );
 
-            console.log(`✅ Restaurant notified - Order ID: ${result.data._id}`);
+            console.log(
+              `✅ Restaurant notified - Order ID: ${result.data._id}`
+            );
           } else {
             console.log("⚠️ Socket.IO not connected - order saved only");
           }
         } catch (socketError) {
-          console.error("⚠️ Socket notification failed:", socketError.message);
+          console.error(
+            "⚠️ Socket notification failed:",
+            socketError.message
+          );
         }
       }
 
-      // ===============================================
-      // 4. RETURN SUCCESS RESPONSE
-      // ===============================================
+      /* ---------------- SUCCESS RESPONSE ---------------- */
       return res.status(201).json({
         success: true,
         data: result.data,
-
-        // 🔹 IMPORTANT: return sessionId to frontend
         sessionId: result.sessionId,
+        sessionStatus: result.sessionStatus,
       });
     } catch (err) {
       console.error("Checkout error:", err);
+
       return res.status(400).json({
         success: false,
         message: err.message || "Checkout failed",
@@ -441,9 +559,15 @@ class CheckoutController {
     }
   }
 
+  /**
+   * ===============================================
+   * SOCKET HEALTH CHECK
+   * ===============================================
+   */
   async getSocketStatus(req, res) {
     try {
       const status = restaurantSocketService.getStatus();
+
       return res.status(200).json({
         success: true,
         connected: status.connected,

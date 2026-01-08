@@ -5,16 +5,18 @@ import {
   getMenuByCategory, // ✅ NEW
 } from "../services/userMenu.service.js";
 
-
 export async function getMenu(req, res) {
   try {
     const { username } = req.params;
 
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 15;
+    // 🔹 Category-based pagination
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 3, 10); 
+    // ↑ limit = categories per page (NOT dishes)
+
     const search = req.query.search?.trim() || null;
 
-    /* ✅ TAGS (comma separated) */
+    // 🔹 Tags (comma-separated)
     const tags = req.query.tags || null;
 
     const result = await getUserMenu(
@@ -22,7 +24,7 @@ export async function getMenu(req, res) {
       page,
       limit,
       search,
-      tags // ✅ PASS TAGS
+      tags
     );
 
     res.status(200).json({
