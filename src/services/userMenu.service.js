@@ -3,6 +3,8 @@ import Dish from "../models/Dish.js";
 import "../models/AddOnGroup.js";
 import "../models/AddOn.js";
 import "../models/Tag.js";
+import { ADDON_POPULATE } from "../utils/populate.config.js";
+import { normalizeDishForMenu } from "../utils/dish.normalizer.js";
 
 /* =====================================================
    GET USER MENU (CATEGORY + TAG FILTER SUPPORT)
@@ -42,21 +44,24 @@ export async function getUserMenu(
     };
   }
 
-  // 3️⃣ Fetch ALL dishes for these categories
+  // 3️⃣ Fetch ALL dishes for these categories (WITH ADD-ONS)
   const dishes = await Dish.find(dishQuery)
     .sort({ popularityScore: -1, createdAt: -1 })
     .populate("categoryId", "name icon")
     .populate("tagDetails", "key name icon color")
+    .populate(ADDON_POPULATE) // ✅ ADD-ONS POPULATED
     .lean();
 
-  // 4️⃣ Group dishes by category
+  // 4️⃣ Group + NORMALIZE dishes by category
   const menu = categories.map((cat) => ({
     id: cat._id,
     name: cat.name,
     icon: cat.icon,
-    dishes: dishes.filter(
-      (dish) => dish.categoryId._id.toString() === cat._id.toString()
-    ),
+    dishes: dishes
+      .filter(
+        (dish) => dish.categoryId._id.toString() === cat._id.toString()
+      )
+      .map(normalizeDishForMenu), // ✅ CRITICAL FIX
   }));
 
   // 5️⃣ Pagination info
@@ -76,6 +81,7 @@ export async function getUserMenu(
 }
 
 
+
 export async function getMostLovedDish(username) {
   const dishes = await Dish.find({
     username,
@@ -83,46 +89,30 @@ export async function getMostLovedDish(username) {
     tags: "most-loved",
   })
     .sort({ popularityScore: -1, createdAt: -1 })
-    .limit(10) // ✅ LIMIT TO MAX 10 DISHES
-    .populate("categoryId", "name")
+    .limit(10)
+    .populate("categoryId", "name icon")
     .populate("tagDetails", "key name icon color")
+    .populate(ADDON_POPULATE)          // ✅ ADD-ONS
     .lean();
 
   if (!dishes || dishes.length === 0) return [];
 
-  return dishes.map((dish) => {
-    const defaultVariant =
-      dish.variants?.find((v) => v.isDefault) || dish.variants?.[0];
-
-    return {
-      ...dish,
-      price: defaultVariant?.price ?? 0,
-      tags: (dish.tagDetails || []).map((tag) => ({
-        key: tag.key,
-        name: tag.name,
-        icon: tag.icon,
-        color: tag.color,
-      })),
-    };
-  });
+  // ✅ Normalize all dishes (SAME SHAPE AS MENU)
+  return dishes.map(normalizeDishForMenu);
 }
+
 
 
 /* =====================================================
    GET CATEGORY PREVIEW (ONE DISH PER CATEGORY)
 ===================================================== */
 export async function getCategoryPreview(username) {
-  /**
-   * Strategy:
-   * - Only active categories
-   * - Pick 1 available dish per category
-   * - Prefer popular dishes
-   */
-
   const categories = await Category.find({
     username,
     isActive: true,
-  }).sort({ order: 1 }).lean();
+  })
+    .sort({ order: 1 })
+    .lean();
 
   if (!categories.length) return [];
 
@@ -146,7 +136,6 @@ export async function getCategoryPreview(username) {
       $group: {
         _id: "$categoryId",
         dishId: { $first: "$_id" },
-        name: { $first: "$name" },
         imageUrl: { $first: "$imageUrl" },
         thumbnailUrl: { $first: "$thumbnailUrl" },
       },
@@ -154,23 +143,18 @@ export async function getCategoryPreview(username) {
   ]);
 
   const dishMap = new Map(
-    dishes.map((d) => [d._id.toString(), d])
+    dishes.map((d) => [String(d._id), d])
   );
 
   return categories.map((cat) => {
-    const dish = dishMap.get(cat._id.toString());
+    const dish = dishMap.get(String(cat._id));
 
     return {
       categoryId: cat._id,
       categoryName: cat.name,
       categoryIcon: cat.icon,
-
-      // representative dish
-      dishId: dish?.dishId || null,
-      imageUrl:
-        dish?.imageUrl ||
-        dish?.thumbnailUrl ||
-        null,
+      dishId: dish?.dishId ?? null,
+      imageUrl: dish?.imageUrl || dish?.thumbnailUrl || null,
     };
   });
 }
@@ -186,84 +170,18 @@ export async function getLowestPricedItems(username) {
   })
     .sort({ "variants.price": 1 }) // 🔥 minimum price first
     .limit(15)
-    .populate("categoryId", "name")
-    .lean();
-
-  return dishes.map((dish) => {
-    const defaultVariant =
-      dish.variants.find((v) => v.isDefault) ||
-      dish.variants[0];
-
-    return {
-      id: dish._id,
-      name: dish.name,
-      imageUrl: dish.imageUrl,
-      price: defaultVariant?.price ?? 0,
-      category: dish.categoryId?.name,
-      foodType: dish.foodType,
-    };
-  });
-}
-
-
-export async function getDishById(dishId) {
-  const dish = await Dish.findById(dishId)
     .populate("categoryId", "name icon")
     .populate("tagDetails", "key name icon color")
-    .populate({
-      path: "addOnGroups",
-      match: { isAvailable: true },
-      populate: {
-        path: "addOns",
-        match: { isActive: true },
-        select: "name price",
-      },
-    })
+    .populate(ADDON_POPULATE)          // ✅ ADD-ONS
     .lean();
 
-  if (!dish) return null;
+  if (!dishes || dishes.length === 0) return [];
 
-  const defaultVariant =
-    dish.variants.find((v) => v.isDefault) || dish.variants[0];
-
-  return {
-    id: dish._id,
-    name: dish.name,
-    description: dish.description,
-    foodType: dish.foodType,
-    imageUrl: dish.imageUrl,
-    thumbnailUrl: dish.thumbnailUrl,
-
-    variants: dish.variants,
-    defaultVariant,
-
-    addOnGroups: dish.addOnGroups.map((group) => ({
-      id: group._id,
-      name: group.name,
-      required: group.required,
-      minSelection: group.minSelection,
-      maxSelection: group.maxSelection,
-      addOns: group.addOns.map((addon) => ({
-        id: addon._id,
-        name: addon.name,
-        price: addon.price,
-      })),
-    })),
-
-    tags: (dish.tagDetails || []).map((tag) => ({
-      key: tag.key,
-      name: tag.name,
-      icon: tag.icon,
-      color: tag.color,
-    })),
-
-    category: {
-      id: dish.categoryId._id,
-      name: dish.categoryId.name,
-      icon: dish.categoryId.icon,
-    },
-  };
+  // ✅ SAME SHAPE AS MENU / MOST LOVED
+  return dishes.map(normalizeDishForMenu);
 }
+
+
 
 /* =====================================================
    GET SEASONAL DISHES
@@ -272,52 +190,21 @@ export async function getSeasonalDishes(username) {
   const dishes = await Dish.find({
     username,
     isAvailable: true,
-    tags: "seasonal", // 🔥 KEY PART
+    tags: "seasonal",
   })
     .sort({ popularityScore: -1, createdAt: -1 })
     .limit(10)
     .populate("categoryId", "name icon")
     .populate("tagDetails", "key name icon color")
+    .populate(ADDON_POPULATE)          // ✅ ADD-ONS POPULATED
     .lean();
 
   if (!dishes || dishes.length === 0) return [];
 
-  return dishes.map((dish) => {
-    const defaultVariant =
-      dish.variants?.find((v) => v.isDefault) ||
-      dish.variants?.[0];
-
-    return {
-      id: dish._id,
-      name: dish.name,
-      description: dish.description,
-      imageUrl: dish.imageUrl,
-      thumbnailUrl: dish.thumbnailUrl,
-      foodType: dish.foodType,
-
-      // 🔥 IMPORTANT (for bottom sheet)
-      variants: dish.variants || [],
-      defaultVariant,
-
-      addOnGroups: dish.addOnGroups || [],
-
-      tags: (dish.tagDetails || []).map((tag) => ({
-        key: tag.key,
-        name: tag.name,
-        icon: tag.icon,
-        color: tag.color,
-      })),
-
-      category: {
-        id: dish.categoryId?._id,
-        name: dish.categoryId?.name,
-        icon: dish.categoryId?.icon,
-      },
-
-      price: defaultVariant?.price ?? 0,
-    };
-  });
+  // ✅ SAME SHAPE AS MENU / MOST LOVED / LOWEST PRICE
+  return dishes.map(normalizeDishForMenu);
 }
+
 
 
 /* =====================================================
@@ -328,14 +215,14 @@ export async function getMenuByCategory(username, categorySlug) {
   const category = await Category.findOne({
     username,
     isActive: true,
-    name: new RegExp(`^${categorySlug}$`, "i"), // case-insensitive
-  });
+    name: new RegExp(`^${categorySlug}$`, "i"),
+  }).lean();
 
   if (!category) {
     return null;
   }
 
-  // 2️⃣ Fetch dishes of this category
+  // 2️⃣ Fetch dishes of this category (WITH ADD-ONS)
   const dishes = await Dish.find({
     username,
     isAvailable: true,
@@ -344,64 +231,11 @@ export async function getMenuByCategory(username, categorySlug) {
     .sort({ popularityScore: -1, createdAt: -1 })
     .populate("categoryId", "name icon")
     .populate("tagDetails", "key name icon color")
-    .populate({
-      path: "addOnGroups",
-      match: { isAvailable: true },
-      populate: {
-        path: "addOns",
-        match: { isActive: true },
-        select: "name price",
-      },
-    })
+    .populate(ADDON_POPULATE) // ✅ SHARED CONFIG
     .lean();
 
-  // 3️⃣ Format dishes (SAME FORMAT AS getUserMenu)
-  const formattedDishes = dishes.map((dish) => {
-    const defaultVariant =
-      dish.variants.find((v) => v.isDefault) || dish.variants[0];
-
-    return {
-      id: dish._id,
-      name: dish.name,
-      description: dish.description,
-      foodType: dish.foodType,
-
-      imageUrl: dish.imageUrl,
-      thumbnailUrl: dish.thumbnailUrl,
-
-      arModel: dish.arModel || { isAvailable: false },
-
-      tags: (dish.tagDetails || []).map((tag) => ({
-        key: tag.key,
-        name: tag.name,
-        icon: tag.icon,
-        color: tag.color,
-      })),
-
-      category: {
-        id: dish.categoryId._id,
-        name: dish.categoryId.name,
-        icon: dish.categoryId.icon,
-      },
-
-      variants: dish.variants,
-      defaultVariant,
-      startingPrice: defaultVariant.price,
-
-      addOnGroups: dish.addOnGroups.map((group) => ({
-        id: group._id,
-        name: group.name,
-        required: group.required,
-        minSelection: group.minSelection,
-        maxSelection: group.maxSelection,
-        addOns: group.addOns.map((addon) => ({
-          id: addon._id,
-          name: addon.name,
-          price: addon.price,
-        })),
-      })),
-    };
-  });
+  // 3️⃣ Normalize dishes (SAME SHAPE EVERYWHERE)
+  const normalizedDishes = dishes.map(normalizeDishForMenu);
 
   return {
     category: {
@@ -409,6 +243,23 @@ export async function getMenuByCategory(username, categorySlug) {
       name: category.name,
       icon: category.icon,
     },
-    dishes: formattedDishes,
+    dishes: normalizedDishes,
   };
+}
+
+
+
+
+
+export async function getDishById(dishId) {
+  const dish = await Dish.findById(dishId)
+    .populate("categoryId", "name icon")
+    .populate("tagDetails", "key name icon color")
+    .populate(ADDON_POPULATE) // ✅ shared populate
+    .lean();
+
+  if (!dish) return null;
+
+  // ✅ SAME SHAPE AS ALL OTHER APIs
+  return normalizeDishForMenu(dish);
 }
