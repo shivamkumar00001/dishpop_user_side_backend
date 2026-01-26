@@ -463,6 +463,294 @@
 // export default new CheckoutController();
 
 
+// import { createOrder } from "../services/checkout.service.js";
+// import { publishOrderEvent } from "../config/publishOrderEvent.js";
+// import restaurantSocketService from "../services/restaurantSocket.services.js";
+
+// class CheckoutController {
+//   /**
+//    * ===============================================
+//    * CREATE ORDER (SESSION-AWARE)
+//    * ===============================================
+//    */
+//   async createOrder(req, res) {
+//     try {
+//       /* ---------------- PARAM VALIDATION ---------------- */
+//       const { username } = req.params;
+
+//       if (!username) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Restaurant username is required",
+//         });
+//       }
+
+//       const {
+//         customerName,
+//         phoneNumber,
+//         tableNumber,
+//         description,
+//         items,
+//         grandTotal,
+//         sessionId, // optional (add-on orders)
+//       } = req.body;
+
+//       /* ---------------- CREATE ORDER ---------------- */
+//       const result = await createOrder({
+//         username,
+//         customerName,
+//         phoneNumber,
+//         tableNumber,
+//         description,
+//         items,
+//         grandTotal,
+//         sessionId,
+//       });
+
+//       /* ---------------- REDIS EVENT ---------------- */
+//       if (result.created) {
+//         publishOrderEvent("order-created", username, {
+//           order: result.data,
+//           sessionId: result.sessionId,
+//         });
+//       }
+
+//       /* ---------------- SOCKET.IO ---------------- */
+//       if (result.created && result.data?._id) {
+//         try {
+//           const socketStatus = restaurantSocketService.getStatus();
+
+//           if (socketStatus.connected) {
+//             console.log("📡 Notifying restaurant backend about new order");
+
+//             await restaurantSocketService.notifyOrderCreated(
+//               result.data._id.toString(),
+//               username
+//             );
+
+//             console.log(
+//               `✅ Restaurant notified - Order ID: ${result.data._id}`
+//             );
+//           } else {
+//             console.log("⚠️ Socket.IO not connected - order saved only");
+//           }
+//         } catch (socketError) {
+//           console.error(
+//             "⚠️ Socket notification failed:",
+//             socketError.message
+//           );
+//         }
+//       }
+
+//       /* ---------------- SUCCESS RESPONSE ---------------- */
+//       return res.status(201).json({
+//         success: true,
+//         data: result.data,
+//         sessionId: result.sessionId,
+//         sessionStatus: result.sessionStatus,
+//       });
+//     } catch (err) {
+//       console.error("Checkout error:", err);
+
+//       return res.status(400).json({
+//         success: false,
+//         message: err.message || "Checkout failed",
+//       });
+//     }
+//   }
+
+//   /**
+//    * ===============================================
+//    * SOCKET HEALTH CHECK
+//    * ===============================================
+//    */
+//   async getSocketStatus(req, res) {
+//     try {
+//       const status = restaurantSocketService.getStatus();
+
+//       return res.status(200).json({
+//         success: true,
+//         connected: status.connected,
+//         socketId: status.socketId,
+//         restaurantBackendUrl:
+//           process.env.RESTAURANT_BACKEND_URL || "Not configured",
+//       });
+//     } catch (error) {
+//       return res.status(500).json({
+//         success: false,
+//         message: "Failed to get socket status",
+//       });
+//     }
+//   }
+// }
+
+// export default new CheckoutController();
+
+
+
+
+
+// import { createOrder } from "../services/checkout.service.js";
+// import { publishOrderEvent } from "../config/publishOrderEvent.js";
+// import restaurantSocketService from "../services/restaurantSocket.services.js";
+
+// class CheckoutController {
+//   /**
+//    * ===============================================
+//    * CREATE ORDER (MULTI-TYPE SUPPORT)
+//    * ===============================================
+//    */
+//   async createOrder(req, res) {
+//     try {
+//       /* ---------------- PARAM VALIDATION ---------------- */
+//       const { username } = req.params;
+
+//       if (!username) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Restaurant username is required",
+//         });
+//       }
+
+//       const {
+//         customerName,
+//         phoneNumber,
+//         tableNumber,
+//         description,
+//         items,
+//         grandTotal,
+//         sessionId,
+//         orderType,
+//         deliveryAddress,
+//       } = req.body;
+
+//       /* ---------------- ORDER TYPE VALIDATION ---------------- */
+//       if (!orderType || !["DINE_IN", "TAKEAWAY", "ONLINE"].includes(orderType)) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Invalid order type. Must be DINE_IN, TAKEAWAY, or ONLINE",
+//         });
+//       }
+
+//       if (orderType === "ONLINE" && !deliveryAddress) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Delivery address is required for online orders",
+//         });
+//       }
+
+//       /* ---------------- CREATE ORDER ---------------- */
+//       const result = await createOrder({
+//         username,
+//         customerName,
+//         phoneNumber,
+//         tableNumber,
+//         description,
+//         items,
+//         grandTotal,
+//         sessionId,
+//         orderType,
+//         deliveryAddress,
+//       });
+
+//       /* ---------------- REDIS EVENT ---------------- */
+//       if (result.created) {
+//         publishOrderEvent("order-created", username, {
+//           order: result.data,
+//           sessionId: result.sessionId,
+//         });
+//       }
+
+//       /* ---------------- SOCKET.IO ---------------- */
+//       if (result.created && result.data?._id) {
+//         try {
+//           const socketStatus = restaurantSocketService.getStatus();
+
+//           if (socketStatus.connected) {
+//             console.log("📡 Notifying restaurant backend about new order");
+
+//             await restaurantSocketService.notifyOrderCreated(
+//               result.data._id.toString(),
+//               username
+//             );
+
+//             console.log(
+//               `✅ Restaurant notified - Order ID: ${result.data._id}`
+//             );
+//           } else {
+//             console.log("⚠️ Socket.IO not connected - order saved only");
+//           }
+//         } catch (socketError) {
+//           console.error(
+//             "⚠️ Socket notification failed:",
+//             socketError.message
+//           );
+//         }
+//       }
+
+//       /* ---------------- SUCCESS RESPONSE ---------------- */
+//       const response = {
+//         success: true,
+//         data: result.data,
+//       };
+
+//       if (result.sessionId) {
+//         response.sessionId = result.sessionId;
+//       }
+
+//       if (result.sessionStatus) {
+//         response.sessionStatus = result.sessionStatus;
+//       }
+
+//       return res.status(201).json(response);
+//     } catch (err) {
+//       console.error("Checkout error:", err);
+
+//       return res.status(400).json({
+//         success: false,
+//         message: err.message || "Checkout failed",
+//       });
+//     }
+//   }
+
+//   /**
+//    * ===============================================
+//    * SOCKET HEALTH CHECK
+//    * ===============================================
+//    */
+//   async getSocketStatus(req, res) {
+//     try {
+//       const status = restaurantSocketService.getStatus();
+
+//       return res.status(200).json({
+//         success: true,
+//         connected: status.connected,
+//         socketId: status.socketId,
+//         restaurantBackendUrl:
+//           process.env.RESTAURANT_BACKEND_URL || "Not configured",
+//       });
+//     } catch (error) {
+//       return res.status(500).json({
+//         success: false,
+//         message: "Failed to get socket status",
+//       });
+//     }
+//   }
+// }
+
+// export default new CheckoutController();
+
+
+
+
+
+
+
+
+
+
+
+// controllers/checkout.controller.js
 import { createOrder } from "../services/checkout.service.js";
 import { publishOrderEvent } from "../config/publishOrderEvent.js";
 import restaurantSocketService from "../services/restaurantSocket.services.js";
@@ -470,7 +758,7 @@ import restaurantSocketService from "../services/restaurantSocket.services.js";
 class CheckoutController {
   /**
    * ===============================================
-   * CREATE ORDER (SESSION-AWARE)
+   * CREATE ORDER (MULTI-TYPE SUPPORT)
    * ===============================================
    */
   async createOrder(req, res) {
@@ -492,8 +780,25 @@ class CheckoutController {
         description,
         items,
         grandTotal,
-        sessionId, // optional (add-on orders)
+        sessionId,
+        orderType,
+        deliveryAddress,
       } = req.body;
+
+      /* ---------------- ORDER TYPE VALIDATION ---------------- */
+      if (!orderType || !["DINE_IN", "TAKEAWAY", "ONLINE"].includes(orderType)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid order type. Must be DINE_IN, TAKEAWAY, or ONLINE",
+        });
+      }
+
+      if (orderType === "ONLINE" && !deliveryAddress) {
+        return res.status(400).json({
+          success: false,
+          message: "Delivery address is required for online orders",
+        });
+      }
 
       /* ---------------- CREATE ORDER ---------------- */
       const result = await createOrder({
@@ -505,6 +810,8 @@ class CheckoutController {
         items,
         grandTotal,
         sessionId,
+        orderType,
+        deliveryAddress,
       });
 
       /* ---------------- REDIS EVENT ---------------- */
@@ -543,12 +850,20 @@ class CheckoutController {
       }
 
       /* ---------------- SUCCESS RESPONSE ---------------- */
-      return res.status(201).json({
+      const response = {
         success: true,
         data: result.data,
-        sessionId: result.sessionId,
-        sessionStatus: result.sessionStatus,
-      });
+      };
+
+      if (result.sessionId) {
+        response.sessionId = result.sessionId;
+      }
+
+      if (result.sessionStatus) {
+        response.sessionStatus = result.sessionStatus;
+      }
+
+      return res.status(201).json(response);
     } catch (err) {
       console.error("Checkout error:", err);
 
