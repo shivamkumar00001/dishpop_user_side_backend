@@ -13,29 +13,29 @@ import checkSubscription from "../middlewares/checkSubscription.js";
 const router = express.Router();
 
 // 🔒 Full menu (paginated)
-router.get("/:username/menu", checkSubscription, getMenu);
+router.get("/:username/menu",  getMenu);
 
 // 🔒 Most loved
-router.get("/:username/menu/most-loved", checkSubscription, getMostLoved);
+router.get("/:username/menu/most-loved", getMostLoved);
 
 // 🔒 Category preview
 router.get(
   "/:username/menu/category-preview",
-  checkSubscription,
+  // checkSubscription,
   getCategoryPreviewController
 );
 
 // 🔒 Lowest price items
 router.get(
   "/:username/menu/lowest-price",
-  checkSubscription,
+  // checkSubscription,
   getLowestPriceItems
 );
 
 // 🔒 FULL DISH DETAILS (⭐ REQUIRED FIX ⭐)
 router.get(
   "/:username/dish/:dishId",
-  checkSubscription,
+  // checkSubscription,
   getDishDetails
 );
 
@@ -45,7 +45,7 @@ import { getSeasonal } from "../controllers/userMenu.controller.js";
 // 🔒 Seasonal dishes
 router.get(
   "/:username/menu/seasonal",
-  checkSubscription,
+  // checkSubscription,
   getSeasonal
 );
 
@@ -53,7 +53,7 @@ router.get(
 // 🔒 CATEGORY MENU (🔥 FIX FOR 404 🔥)
 router.get(
   "/:username/menu/category/:category",
-  checkSubscription,
+  // checkSubscription,
   getMenuByCategoryController
 );
 
